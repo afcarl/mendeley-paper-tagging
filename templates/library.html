@@ -9,12 +9,53 @@
 <h1>{{name}}'s documents</h1>
 
 <table>
+    <tr><th>Suggested Tags</th>
+        <th>Tags</th>
+        <th>Authors</th>
+        <th>Year</th>
+        <th>Title</th>
+        <th>Abstract</th>
+        <th>PDF</th>
+    </tr>
     {% for doc in docs %}
     <tr>
-        <td><a href="/document?document_id={{doc['id']}}">{{doc.title}}</a></td>
+        <td>
+            {% if doc['suggested_tags'] %}
+                {% for tag in doc['suggested_tags'] %}
+                {{ tag }}{% if not loop.last %},{% endif %}
+                {% endfor %}
+            {% endif %}
+        </td>
+        <td>
+            {% if doc['human_tags'] %}
+                {% for tag in doc['human_tags'] %}
+                {{ tag }}{% if not loop.last %},{% endif %}
+                {% endfor %}
+            {% endif %}
+        </td>
+        <td>
+            {% if doc['authors'] %}
+                {% for author in doc['authors'] %}
+                {{author['last_name']}}{% if not loop.last %},{% endif %}
+                {% endfor %}
+            {% endif %}
+        </td>
+        <td>
+            {{ doc.year }}
+        </td>
+        <td><a href="/document?document_id={{doc['id']}}">
+                {{doc.title}}
+            </a></td>
+        <td>
+            {% if doc.abstract %} 
+                {{ doc.abstract }}
+            {% endif %}
+            </td>
+            <td>
         {% if doc.file_attached %}
-            <td><a href="/download?document_id={{doc['id']}}">Download</a></td>
+            <a href="/download?document_id={{doc['id']}}">Download</a>
         {% endif %}
+            </td>
     </tr>
     {% endfor %}
 </table>

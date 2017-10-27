@@ -4,6 +4,10 @@ import yaml
 from mendeley import Mendeley
 from mendeley.session import MendeleySession
 
+from sklearn.linear_model import LogisticRegression
+from sklearn.feature_extraction.text import CountVectorizer
+from sklearn.pipeline import Pipeline
+from scipy.sparse import hstack
 
 with open('config.yml') as f:
     config = yaml.load(f)
@@ -19,8 +23,8 @@ mendeley = Mendeley(config['clientId'], config['clientSecret'], REDIRECT_URI)
 
 @app.route('/')
 def home():
-    if 'token' in session:
-        return redirect('/listDocuments')
+    # if 'token' in session:
+    #     return redirect('/listDocuments')
 
     auth = mendeley.start_authorization_code_flow()
     session['state'] = auth.state
@@ -47,7 +51,114 @@ def list_documents():
     mendeley_session = get_session_from_cookies()
 
     name = mendeley_session.profiles.me.display_name
-    docs = mendeley_session.documents.list(view='client').items
+    # for g in mendeley_session.groups.list().items:
+    #     if g.name == "DSOARS":
+
+    dsoars_id = "6eb64e0d-8590-3b35-a8dc-eea72b64dd68"
+    docs = []
+    for doc in mendeley_session.groups.get(dsoars_id).documents.iter(page_size=200,
+                                                                     view="all"):
+    # for doc in mendeley_session.groups.get(dsoars_id).documents.list(page_size=20,
+    #         view="all").items:
+        docs.append(doc)
+
+    # DO THE MACHINE LEARNING HERE
+    tags = set()
+    for doc in docs:
+        doc.suggested_tags = []
+        doc.human_tags = []
+        doc.labeled = False
+
+        if doc.tags is None:
+            continue
+
+        for tag in doc.tags:
+            if "suggested::" not in tag:
+                tags.add(tag)
+                doc.labeled = True
+                doc.human_tags.append(tag)
+
+    print(tags)
+
+    author_vectorizer = CountVectorizer(analyzer='char_wb',
+                                        strip_accents="unicode",
+                                        ngram_range=(1, 5))
+    title_vectorizer = CountVectorizer(analyzer='char_wb',
+                                       strip_accents="unicode",
+                                       ngram_range=(1, 5))
+    abstract_vectorizer = CountVectorizer(analyzer='char_wb',
+                                          strip_accents="unicode",
+                                          ngram_range=(1, 5))
+    clf = LogisticRegression()
+
+    for tag in tags:
+        X_authors = []
+        X_titles = []
+        X_abstracts = []
+        y_train = []
+        for doc in docs:
+            if doc.labeled is False:
+                continue
+
+            if doc.authors is None:
+                authors = ""
+            else:
+                authors = ",".join([p.last_name for p in doc.authors])
+            X_authors.append(authors)
+            X_titles.append(doc.title)
+
+            X_abstracts.append("" if doc.abstract is None else doc.abstract)
+
+            if doc.tags is not None and tag in doc.tags:
+                y_train.append(1)
+            else:
+                y_train.append(0)
+
+        if len(set(y_train)) <= 1:
+            continue
+
+        print("Training classifier for: %s" % tag)
+
+        author_features = author_vectorizer.fit_transform(X_authors)
+        title_features = title_vectorizer.fit_transform(X_titles)
+        abstract_features = abstract_vectorizer.fit_transform(X_abstracts)
+
+        X_train = hstack([author_features, title_features, abstract_features],
+                         format="csr")
+
+        clf.fit(X_train, y_train)
+
+        for doc in docs:
+            if doc.labeled is True:
+                continue
+
+            if doc.authors is None:
+                authors = ""
+            else:
+                authors = ",".join([p.last_name for p in doc.authors])
+
+            x = hstack([author_vectorizer.transform([authors]),
+                        title_vectorizer.transform([doc.title]),
+                        abstract_vectorizer.transform(["" if doc.abstract is None else doc.abstract])],
+                       format="csr")
+
+            if clf.predict(x)[0] == 1:
+                doc.suggested_tags.append(tag)
+
+    for i, doc in enumerate(docs):
+        if doc.labeled is True:
+            continue
+
+        print("Updating %i of %i" % (i, len(docs)))
+        if len(doc.suggested_tags) == 0:
+            doc.update(tags=["suggested::Untagged"])
+        else:
+            doc.update(tags=["suggested::" + tag for tag in doc.suggested_tags])
+
+    # END ML
+
+    # print([(g.name, g.id) for g in mendeley_session.groups.list().items])
+    # docs = mendeley_session.documents.list(view='client').items
 
     return render_template('library.html', name=name, docs=docs)
 
@@ -60,7 +171,7 @@ def get_document():
     mendeley_session = get_session_from_cookies()
 
     document_id = request.args.get('document_id')
-    doc = mendeley_session.documents.get(document_id)
+    doc = mendeley_session.documents.get(document_id, view="tags")
 
     return render_template('metadata.html', doc=doc)
 
