@@ -5,6 +5,11 @@ from mendeley import Mendeley
 from mendeley.session import MendeleySession
 
 from sklearn.linear_model import LogisticRegression
+from sklearn.svm import OneClassSVM
+from sklearn.svm import SVC
+from sklearn.model_selection import RandomizedSearchCV
+import numpy as np
+
 from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.pipeline import Pipeline
 from scipy.sparse import hstack
@@ -89,7 +94,11 @@ def list_documents():
     abstract_vectorizer = CountVectorizer(analyzer='char_wb',
                                           strip_accents="unicode",
                                           ngram_range=(1, 5))
-    clf = LogisticRegression()
+    clf1 = LogisticRegression()
+    # clf1 = OneClassSVM(nu=0.1, kernel="rbf", gamma=0.1)
+    # clf1 = SVC()
+    params = {'C': np.logspace(-30, 2, 10000)}
+    clf = RandomizedSearchCV(clf1, params, cv=2, n_iter=10)
 
     for tag in tags:
         X_authors = []
@@ -116,6 +125,8 @@ def list_documents():
 
         if len(set(y_train)) <= 1:
             continue
+        if sum(y_train) <= 2 or len(y_train) - sum(y_train) <= 2:
+            continue
 
         print("Training classifier for: %s" % tag)
 
@@ -127,6 +138,11 @@ def list_documents():
                          format="csr")
 
         clf.fit(X_train, y_train)
+
+        print(clf.best_params_)
+        print(clf.best_score_)
+
+        # clf.fit(X_train[y_train == 1])
 
         for doc in docs:
             if doc.labeled is True:
