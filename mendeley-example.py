@@ -94,11 +94,6 @@ def list_documents():
     abstract_vectorizer = CountVectorizer(analyzer='char_wb',
                                           strip_accents="unicode",
                                           ngram_range=(1, 5))
-    clf1 = LogisticRegression()
-    # clf1 = OneClassSVM(nu=0.1, kernel="rbf", gamma=0.1)
-    # clf1 = SVC()
-    params = {'C': np.logspace(-30, 2, 10000)}
-    clf = RandomizedSearchCV(clf1, params, cv=2, n_iter=10)
 
     for tag in tags:
         X_authors = []
@@ -126,7 +121,13 @@ def list_documents():
         if len(set(y_train)) <= 1:
             continue
         if sum(y_train) < 2 or len(y_train) - sum(y_train) < 2:
-            continue
+            clf = LogisticRegression()
+        else:
+            clf1 = LogisticRegression()
+            # clf1 = OneClassSVM(nu=0.1, kernel="rbf", gamma=0.1)
+            # clf1 = SVC()
+            params = {'C': np.logspace(-30, 2, 10000)}
+            clf = RandomizedSearchCV(clf1, params, cv=2, n_iter=10)
 
         print("Training classifier for: %s" % tag)
 
@@ -139,8 +140,11 @@ def list_documents():
 
         clf.fit(X_train, y_train)
 
-        print(clf.best_params_)
-        print(clf.best_score_)
+        if sum(y_train) < 2 or len(y_train) - sum(y_train) < 2:
+            print("No regularization")
+        else:
+            print("Best Params:", clf.best_params_)
+            print("Best Score:", clf.best_score_)
 
         # clf.fit(X_train[y_train == 1])
 
@@ -158,7 +162,7 @@ def list_documents():
                         abstract_vectorizer.transform(["" if doc.abstract is None else doc.abstract])],
                        format="csr")
 
-            if clf.predict(x)[0] == 1:
+            if clf.predict(x)[0] == 1 and tag not in [tag.lower() for tag in doc.tags]:
                 doc.suggested_tags.append(tag)
 
     for i, doc in enumerate(docs):
