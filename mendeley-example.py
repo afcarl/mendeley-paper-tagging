@@ -79,7 +79,7 @@ def list_documents():
 
         for tag in doc.tags:
             if "suggested::" not in tag:
-                tags.add(tag)
+                tags.add(tag.lower())
                 doc.labeled = True
                 doc.human_tags.append(tag)
 
@@ -118,14 +118,14 @@ def list_documents():
 
             X_abstracts.append("" if doc.abstract is None else doc.abstract)
 
-            if doc.tags is not None and tag in doc.tags:
+            if doc.tags is not None and tag in [tag.lower() for tag in doc.tags]:
                 y_train.append(1)
             else:
                 y_train.append(0)
 
         if len(set(y_train)) <= 1:
             continue
-        if sum(y_train) <= 2 or len(y_train) - sum(y_train) <= 2:
+        if sum(y_train) < 2 or len(y_train) - sum(y_train) < 2:
             continue
 
         print("Training classifier for: %s" % tag)
