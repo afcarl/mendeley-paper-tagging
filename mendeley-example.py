@@ -59,7 +59,7 @@ def list_documents():
     # for g in mendeley_session.groups.list().items:
     #     if g.name == "DSOARS":
 
-    dsoars_id = "6eb64e0d-8590-3b35-a8dc-eea72b64dd68"
+    dsoars_id = config['groupId'] 
     docs = []
     for doc in mendeley_session.groups.get(dsoars_id).documents.iter(page_size=200,
                                                                      view="all"):
@@ -145,8 +145,8 @@ def list_documents():
         # clf.fit(X_train[y_train == 1])
 
         for doc in docs:
-            if doc.labeled is True:
-                continue
+            # if doc.labeled is True:
+            #     continue
 
             if doc.authors is None:
                 authors = ""
@@ -162,14 +162,17 @@ def list_documents():
                 doc.suggested_tags.append(tag)
 
     for i, doc in enumerate(docs):
-        if doc.labeled is True:
-            continue
+        # if doc.labeled is True:
+        #     continue
+        new_tags = ["suggested::" + tag for tag in doc.suggested_tags]
+        if doc.tags is not None:
+            new_tags += [tag for tag in doc.tags if "suggested::" not in tag]
 
         print("Updating %i of %i" % (i, len(docs)))
-        if len(doc.suggested_tags) == 0:
+        if len(new_tags) == 0:
             doc.update(tags=["suggested::Untagged"])
         else:
-            doc.update(tags=["suggested::" + tag for tag in doc.suggested_tags])
+            doc.update(tags=new_tags)
 
     # END ML
 

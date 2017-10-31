@@ -1,2 +1,3 @@
 clientId: {id} 
 clientSecret: {secret}
+groupId: {mendeley group id}
